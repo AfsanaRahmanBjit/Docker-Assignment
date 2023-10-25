@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+  mongo:
+    image: mongo
+    container_name: mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./database/db:/data/db
+      - ./database/dev.archive:/Databases/dev.archive
+      - ./database/production:/Databases/production
+
+  backend:
+    build:
+      context: ./Online-Book-Stote # Replace with the path to your backend Dockerfile and source code
+    container_name: backend
+    ports:
+      - "8000:8000"
+    links:
+      - mongo
+
+  frontend:
+    build:
+      context: ./Book-Store # Replace with the path to your frontend Dockerfile and source code
+    container_name: frontend
+    ports:
+      - "5173:5173"
+
+networks:
+  my-network:
