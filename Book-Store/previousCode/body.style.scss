@@ -1,0 +1,70 @@
+.background-container {
+  background-image: url("src/images/girl.jpg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  width: 100%;
+  height: 100vh;
+}
+.search-container {
+  position: absolute;
+  top: 50%;
+  left: 25%;
+  right: 25%;
+  padding: 10px 20px;
+  background-color: rgba(255, 255, 255, 0.822); /* Example button styling */
+  color: gray;
+  border: none;
+  border: 2px solid orange;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 16px;
+  width: 50%;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s, box-shadow 0.3s;
+}
+
+.search-container:hover {
+  cursor: pointer;
+  background-color: white;
+  color: black;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+.search-container:hover input {
+  color: black;
+}
+
+.background-style {
+  /* background-color: darkorange; */
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.element {
+  flex: 0.3;
+  filter: blur(1px);
+  -webkit-filter: blur(1px);
+}
+.middle {
+  flex: 2;
+}
+.light-theme {
+  background-color: #fff;
+  color: #333;
+  /* Other light theme styles */
+}
+
+.dark-theme {
+  background-color: #333;
+  color: #fff;
+  /* Other dark theme style*/
+}
+
+h1{
+  color: darkorange;
+}
+
+
+

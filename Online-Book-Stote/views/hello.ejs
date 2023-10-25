@@ -1,0 +1,72 @@
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 0 5%;
+            background-color: azure;
+            color: black;
+        }
+        table {
+            border-collapse: collapse;
+            font-size: 17px;
+            width: 80%;
+            margin: 0 auto;
+        }
+
+        tr {
+            background-color: beige;
+        }
+
+        th {
+            font-weight: normal;
+            font-style: italic;
+            background-color: cornflowerblue;
+            color: azure;
+        }
+
+        td,
+        th {
+            border: 1px solid cornflowerblue;
+            padding: 0.25rem 0.75rem;
+            white-space: pre-wrap;
+        }
+
+        td a {
+            text-decoration: none;
+            color: blue;
+            transition: 0.25s color;
+        }
+
+        td a:hover {
+            color: cornflowerblue;
+        }
+        .header {
+            width: 80%;
+            margin: 1.25rem auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1 class="header"><%= name %></h1>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>URL</th>
+                <th>Method</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% for(var i = 0; i < routes.length; i++) {%>
+            <tr>
+                <td><%=i+1 %></td>
+                <td><a href="<%=routes[i].url %>"><%=routes[i].url %></a></td>
+                <td><%=routes[i].method %></td>
+                <td><%=routes[i].description %></td>
+            </tr>
+            <% } %>
+        </tbody>
+    </table>
+</body>

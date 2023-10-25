@@ -1,0 +1,468 @@
+const { validationResult } = require("express-validator");
+const { success, failure } = require("../output/statements");
+const BookModel = require("../model/BookModel");
+const HTTP_STATUS = require("../constants/statusCodes");
+const { log } = require("../server/logger");
+const path = require("path");
+const imageTypes = require("../constants/imageTypes");
+const { sendResponse } = require("../util/common");
+const fs = require("fs");
+
+
+class BookController {
+  async getAll(req, res) {
+    try {
+      const {
+        page,
+        limit,
+        search,
+        sortBy,
+        sortOrder,
+        filterField,
+        filterStart,
+        filterLimit,
+      } = req.query;
+
+    
+
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      if (page && isNaN(pageNum)) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Page must be a valid numbers"));
+      }
+      if (limit && isNaN(limitNum)) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Limit must be a valid numbers"));
+      }
+
+      if (pageNum < 1 || pageNum > 100) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Page must be between 1 and 100"));
+      }
+
+      if (limitNum < 1 || limitNum > 20) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Limit must be between 1 and 5"));
+      }
+
+      const pageNum_default = pageNum || 1;
+      const limitNum_default = limitNum || 5;
+      let query = {};
+
+      if (search) {
+        query.$or = [
+          { title: { $regex: search, $options: "i" } },
+          { author: { $regex: search, $options: "i" } },
+          { publisher: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const sortOptions = {};
+      if (sortBy && sortOrder) {
+        if (!["price", "stock"].includes(sortBy)) {
+          return res
+            .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            .send(failure("Invalid attribute to sort by"));
+        }
+        if (!["asc", "desc"].includes(sortOrder)) {
+          return res
+            .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            .send(failure("Invalid sorting order"));
+        }
+        sortOptions[sortBy] = sortOrder === "asc" ? 1 : -1;
+      }
+      if (!sortBy && sortOrder) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(
+            failure(
+              "Please provide the a attribute name which you want  to sort "
+            )
+          );
+      }
+      if (sortBy && !sortOrder) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Please provide the sorting order "));
+      }
+
+      if (filterField && filterStart && filterLimit) {
+        if (!["price", "stock", "rating"].includes(filterField)) {
+          return res
+            .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            .send(failure("Invalid attribute for filter out"));
+        }
+        const filterStartNum = parseInt(filterStart);
+
+        if (isNaN(filterStartNum)) {
+          return res
+            .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            .send(failure("Invalid filter starting value"));
+        }
+
+        if (filterField === "rating") {
+          if (filterLimit === "greater") {
+            query.rating = { $gte: filterStartNum };
+          }
+          if (filterLimit === "less") {
+            query.rating = { $lte: filterStartNum };
+          }
+        }
+        if (filterField === "price") {
+          if (filterLimit === "greater") {
+            query.price = { $gte: filterStartNum };
+          }
+          if (filterLimit === "less") {
+            query.price = { $lte: filterStartNum };
+          }
+        }
+        if (filterField === "stock") {
+          if (filterLimit === "greater") {
+            query.stock = { $gte: filterStartNum };
+          }
+          if (filterLimit === "less") {
+            query.stock = { $lte: filterStartNum };
+          }
+        }
+      }
+      if (!filterField && filterStart && filterLimit) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Please provide the filter Field"));
+      }
+      if (filterField && !filterStart && filterLimit) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Please provide the filter starting point"));
+      }
+      if (filterField && filterStart && !filterLimit) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Please provide the filter limit"));
+      }
+
+      if (!filterField && !filterStart && filterLimit) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(
+            failure("Please provide the filter Field and filter starting point")
+          );
+      }
+      if (filterField && !filterStart && !filterLimit) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(
+            failure(
+              "Please provide the filter starting point and filter limit "
+            )
+          );
+      }
+      if (!filterField && filterStart && !filterLimit) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Please provide the filter field  and filter limit "));
+      }
+
+      const books = await BookModel.find({});
+
+      if (books.length <= 0) {
+        return res
+          .status(HTTP_STATUS.NOT_FOUND)
+          .send(success("No products were found"));
+      }
+      const total=books.length;
+      const totalPages=Math.round(total/limitNum_default);
+     
+      
+      const booksPage = await BookModel.find(query, {
+        createdAt: false,
+        updatedAt: false,
+      })
+        .populate("reviews", "review")
+        .populate("discounts", "discountPercentage startDate endDate")
+        .sort(sortOptions)
+        .skip((pageNum_default - 1) * limitNum_default)
+        .limit(limitNum_default);
+    
+      if (booksPage.length > 0) {
+        return res
+          .status(HTTP_STATUS.OK)
+          .send(
+            success("Successfully received all Books", {
+              Page: pageNum_default,
+              Limit: limitNum_default,
+              Total: books.length,
+              TotalPages:totalPages,
+              Result: booksPage,
+            })
+          );
+      }
+    
+      return res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .send(success("No book was found with the provided criteria"));
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .send(failure("Internal server error"));
+    }
+  }
+
+
+  async getAllBooks(req, res) {
+    try {
+      const booksExist = await BookModel.find({});
+
+      if (booksExist.length <= 0) {
+        return res
+          .status(HTTP_STATUS.NOT_FOUND)
+          .send(success("No books were found"));
+      }
+
+      const books = await BookModel.populate("reviews", "review")
+        .populate("discounts", "discountPercentage startDate endDate");
+
+      if (books.length > 0) {
+        return res
+          .status(HTTP_STATUS.OK)
+          .send(
+            success("Successfully received all Books", { Result: booksPage })
+          );
+      }
+      return res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .send(success("No book was found."));
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .send(failure("Internal server error"));
+    }
+  }
+  async getOneById(req, res) {
+    try {
+      const { id } = req.params;
+      const book = await BookModel.findById(id).populate("reviews", "review")
+      .populate("discounts", "discountPercentage startDate endDate");
+
+      // const imageUrl = `${book.image}`;
+      const bookData = {
+        _id: book._id,
+        // image: imageUrl,
+        title: book.title,
+        author: book.author,
+        publisher: book.publisher,
+        price: book.price,
+        stock: book.stock,
+        rating: book.rating,
+        reviews: book.reviews,
+        discounts: book.discounts,
+       
+    };
+      if (book) {
+        return res
+          .status(HTTP_STATUS.OK)
+          .send(success("Successfully received the book", bookData));
+      }
+
+     
+       
+      return res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .send(failure("There is no book exist with the given ID"));
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .send(failure("Internal server error"));
+    }
+  }
+
+  async add(req, res) {
+    try {
+
+    //   if (!req.file) {
+     
+    //     return res.status(HTTP_STATUS.NOT_FOUND).send(failure("Failed to upload file"));
+    //      }
+    //   if (!imageTypes.includes(req.file_extension)) {
+    //     return res.status(HTTP_STATUS.UNPROCESSABLE_ENTITY).send(failure("Only .jpg, .png, .jpeg formats are allowed."));
+    // }
+     
+      const validation = validationResult(req).array();
+      if (validation.length > 0) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Failed to add the book", validation));
+      }
+
+      const {title, author, publisher, price, stock } = req.body;
+      const findBook = await BookModel.find({ title: title, author: author });
+      if (findBook.length > 0) {
+        return res
+          .status(HTTP_STATUS.CONFLICT)
+          .send(
+            failure("There is already a book exist with same title and author")
+          );
+      }
+      // const imageUrl = req.file.path.replace(/\\/g, '/');
+     const book = await BookModel.create({
+      //   image:imageUrl,
+         title: title,
+        author: author,
+         publisher: publisher,
+         price: price,
+         stock: stock,
+      });
+
+
+
+      if (book) {
+        return res
+          .status(HTTP_STATUS.CREATED)
+          .send(success("Successfully added the book", book));
+      }
+
+      return res
+        .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        .send(failure("Failed to add the book"));
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .send(failure("Internal server error"));
+    }
+  }
+  async update(req, res) {
+    try {
+      const validation = validationResult(req).array();
+      if (validation.length > 0) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Failed to update the book", validation));
+      }
+
+      const { id } = req.params;
+      const book = await BookModel.findById({ _id: id });
+      if (!book) {
+        return res
+          .status(HTTP_STATUS.NOT_FOUND)
+          .send(failure("There is no book exist with the given book ID"));
+      }
+
+      const { title, author, publisher, price, stock } = req.body;
+
+      const updatedBook = await BookModel.findByIdAndUpdate(
+        id,
+        { title, author, publisher, price, stock },
+        { new: true }
+      );
+
+      if (updatedBook) {
+        return res
+          .status(HTTP_STATUS.OK)
+          .send(success("Successfully updated the book data", updatedBook));
+      }
+      return res
+        .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        .send(failure("Failed to update the book data"));
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .send(failure("Internal server error"));
+    }
+  }
+
+  async partialUpdate(req, res) {
+    try {
+      const validation = validationResult(req).array();
+      if (validation.length > 0) {
+        return res
+          .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          .send(failure("Failed to update the product", validation));
+      }
+
+      const { id } = req.params;
+      const book = await BookModel.findById({ _id: id });
+      if (!book) {
+        return res
+          .status(HTTP_STATUS.NOT_FOUND)
+          .send(failure("There is no book exist with the given book ID"));
+      }
+
+      const updatedFields = {};
+
+      if (req.body.title) {
+        updatedFields.title = req.body.title;
+      }
+      if (req.body.author) {
+        updatedFields.author = req.body.author;
+      }
+      if (req.body.publisher) {
+        updatedFields.publisher = req.body.publisher;
+      }
+      if (req.body.price) {
+        updatedFields.price = req.body.price;
+      }
+      if (req.body.stock) {
+        updatedFields.stock = req.body.stock;
+      }
+
+      const updatedBook = await BookModel.findByIdAndUpdate(
+        id,
+        { $set: updatedFields },
+        { new: true }
+      );
+
+      if (updatedBook) {
+        return res
+          .status(HTTP_STATUS.OK)
+          .send(success("Successfully updated the book data", updatedBook));
+      }
+      return res
+        .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        .send(failure("Failed to update the book data"));
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .send(failure("Internal server error"));
+    }
+  }
+
+  async deleteOneById(req, res) {
+    try {
+      const { id } = req.params;
+      const findBook = await BookModel.findById({ _id: id });
+      if (!findBook) {
+        return res
+          .status(HTTP_STATUS.NOT_FOUND)
+          .send(failure("There is no book exist with the given ID"));
+      }
+
+      const book_dalete = await BookModel.findByIdAndDelete({ _id: id });
+      if (book_dalete) {
+        return res
+          .status(HTTP_STATUS.OK)
+          .send(success("Successfully deleted the book"));
+      }
+      return res
+        .status(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        .send(failure("Failed to delete the book"));
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .send(failure("Internal server error"));
+    }
+  }
+}
+
+module.exports = new BookController();

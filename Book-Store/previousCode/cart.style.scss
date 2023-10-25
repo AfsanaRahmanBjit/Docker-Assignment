@@ -1,0 +1,24 @@
+.cart-container{
+    color:darkorange;
+    background-color:cornsilk ;
+    width:200px;
+    border: 2px solid darkorange;
+    border-radius: 8px;
+    
+}
+
+.remove-button-style {
+    background-color: darkorange;
+    border: 2px solid cornsilk ;
+    width: 80px;
+    height:30px;
+    padding: 5px;
+    border-radius: 5px;
+    font-weight: bold;
+    color:white;
+    margin-right: 50px;
+}
+
+.remove-button-style:hover {
+   background-color: dimgray;
+}
